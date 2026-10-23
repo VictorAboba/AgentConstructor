@@ -7,6 +7,7 @@ import statistics
 import time
 from collections import defaultdict
 
+from ..datasets import DatasetError, fingerprint, select_files
 from ..db import db, new_id, now
 from ..providers import LLMParams, ProviderError, get_provider
 from ..tools.sandbox import SandboxConfig, SandboxError, make_sandbox
@@ -72,6 +73,16 @@ async def execute_run(run_id: str, graph: dict, task: str, expected: str | None,
     try:
         async with tracer.span("sandbox", f"{sandbox.kind} sandbox", data={"config": sb_cfg.__dict__}) as s:
             await sandbox.start()
+            if item_meta.get("files_from"):
+                spec = item_meta["files_from"]
+                try:  # off the event loop: a folder can be large
+                    picked = await asyncio.to_thread(select_files, spec)
+                except DatasetError as e:
+                    raise SandboxError(f"dataset files: {e}")
+                await asyncio.to_thread(sandbox.copy_in, picked)
+                s.data["files_from"] = {**spec, "count": len(picked), "bytes": sum(f.stat().st_size for _, f in picked),
+                                        "sha": await asyncio.to_thread(fingerprint, picked),
+                                        "files": [rel for rel, _ in picked[:200]]}
             sandbox.seed(item_meta.get("files") or {})
             setup = item_meta.get("setup") or settings.get("setup_command")
             if setup:

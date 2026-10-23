@@ -9,7 +9,7 @@ from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
-from .datasets import DatasetError, normalize_item, parse_dataset
+from .datasets import DatasetError, normalize_items, parse_dataset
 from .db import db, new_id, now
 from .engine import runner
 from .engine.evaluator import SCORERS
@@ -43,7 +43,13 @@ Edge: {"id": str, "source": node id, "target": node id, "data": {"kind": ..., ..
                                to receive only their posts (empty/missing = every post)
 Settings: {"sandbox": {"type": "docker"|"local", "image": "python:3.12-slim", "network": false, "timeout": 60},
            "max_activations": 40, "timeout_s": 900, "keep_workspace": true, "setup_command": ""}
-Dataset item: {"task": str, "answer": str, "files": {path: content}?, "setup": shell command?, ...extra meta}
+Dataset item: {"task": str, "answer": str, "files"?: ..., "files_glob"?: ..., "setup": shell command?, ...extra meta}
+  files: {path: content} inline | "folder/path" (copied whole into the sandbox when a run starts) |
+         {"dir": "folder/path", "glob": "**/*.py"}. files_glob = the same filter as a separate field.
+  Patterns: ";"-separated or a list; no "/" → matches file names at any depth; with "/" → path from the
+  folder root ("**" = any dirs); "re:<regex>" searches the relative path; leading "!" excludes.
+  Relative folders resolve against the imported file's folder (import_dataset_file) or the project root;
+  "{field}" placeholders are filled from the item, e.g. "tasks/{id}".
 Scorers: """ + ", ".join(f"{k} ({v})" for k, v in SCORERS.items())
 
 mcp = MCPServer("AgentConstructor", instructions=GUIDE)
@@ -209,7 +215,7 @@ def get_dataset(dataset_id: str, offset: int = 0, limit: int = 20) -> dict:
 
 
 def _insert_items(dataset_id: str, items: list[dict], start: int) -> int:
-    rows = [{"id": new_id("it_"), "dataset_id": dataset_id, "idx": start + i, **normalize_item(it)} for i, it in enumerate(items)]
+    rows = [{"id": new_id("it_"), "dataset_id": dataset_id, "idx": start + i, **it} for i, it in enumerate(items)]
     db.insert_many("dataset_items", rows)
     count = db.one("SELECT COUNT(*) AS n FROM dataset_items WHERE dataset_id = ?", [dataset_id])["n"]
     db.update("datasets", dataset_id, {"item_count": count})
@@ -217,16 +223,22 @@ def _insert_items(dataset_id: str, items: list[dict], start: int) -> int:
 
 
 @mcp.tool()
-def create_dataset(name: str, items: list[dict], description: str = "") -> dict:
-    """Create a dataset from items like {"task": ..., "answer": ..., "files": {...}?, "setup": "..."?}.
-    Field aliases are accepted (question/prompt/input, expected/target/solution)."""
+def create_dataset(name: str, items: list[dict], description: str = "", files_dir: str = "", files_glob: str = "") -> dict:
+    """Create a dataset from items like {"task": ..., "answer": ..., "files": ...?, "setup": "..."?}.
+    Field aliases are accepted (question/prompt/input, expected/target/solution).
+    files_dir / files_glob: a host folder (and filter) seeded for every item without files of its own;
+    see the overview for the files forms and pattern syntax."""
     try:
-        [normalize_item(it) for it in items]
+        normalized = normalize_items(items, None, _defaults(files_dir, files_glob))
     except DatasetError as e:
         raise ValueError(str(e))
     did = new_id("ds_")
     db.insert("datasets", {"id": did, "name": name, "description": description, "item_count": 0, "created_at": now()})
-    return {"id": did, "item_count": _insert_items(did, items, 0), "url": f"{UI}/#/datasets/{did}"}
+    return {"id": did, "item_count": _insert_items(did, normalized, 0), "url": f"{UI}/#/datasets/{did}"}
+
+
+def _defaults(files_dir: str, files_glob: str) -> dict | None:
+    return {"files": files_dir, "files_glob": files_glob} if files_dir.strip() else None
 
 
 @mcp.tool()
@@ -235,19 +247,21 @@ def add_dataset_items(dataset_id: str, items: list[dict]) -> dict:
     _need("datasets", dataset_id)
     last = db.one("SELECT COALESCE(MAX(idx), -1) AS m FROM dataset_items WHERE dataset_id = ?", [dataset_id])["m"]
     try:
-        return {"item_count": _insert_items(dataset_id, items, last + 1)}
+        return {"item_count": _insert_items(dataset_id, normalize_items(items), last + 1)}
     except DatasetError as e:
         raise ValueError(str(e))
 
 
 @mcp.tool()
-def import_dataset_file(path: str, name: str = "", description: str = "") -> dict:
-    """Import a local JSONL / JSON / CSV / TSV file (absolute path on this machine) as a dataset."""
-    p = Path(path).expanduser()
+def import_dataset_file(path: str, name: str = "", description: str = "", files_dir: str = "", files_glob: str = "") -> dict:
+    """Import a local JSONL / JSON / CSV / TSV file (absolute path on this machine) as a dataset.
+    Relative folders in `files` and files_dir resolve against the file's folder. files_dir / files_glob:
+    a folder (and filter) seeded for every item without files of its own."""
+    p = Path(path).expanduser().resolve()
     if not p.is_file():
         raise ValueError(f"file not found: {p}")
     try:
-        items = parse_dataset(p.name, p.read_bytes())
+        items = parse_dataset(p.name, p.read_bytes(), p.parent, _defaults(files_dir, files_glob))
     except DatasetError as e:
         raise ValueError(str(e))
     did = new_id("ds_")

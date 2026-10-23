@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
 import json
@@ -212,9 +213,13 @@ def get_dataset(did: str):
 
 
 @app.post("/api/datasets")
-async def upload_dataset(file: UploadFile = File(...), name: str = Form(""), description: str = Form("")):
+async def upload_dataset(file: UploadFile = File(...), name: str = Form(""), description: str = Form(""),
+                         files_dir: str = Form(""), files_glob: str = Form("")):
+    """files_dir / files_glob: a folder (and filter) seeded for every item that has no files of its own."""
+    defaults = {"files": files_dir, "files_glob": files_glob} if files_dir.strip() else None
     try:
-        items = parse_dataset(file.filename or "data.jsonl", await file.read())
+        raw = await file.read()
+        items = await asyncio.to_thread(parse_dataset, file.filename or "data.jsonl", raw, None, defaults)
     except DatasetError as e:
         raise HTTPException(400, str(e))
     did = new_id("ds_")

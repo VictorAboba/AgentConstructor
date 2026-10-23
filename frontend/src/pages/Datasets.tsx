@@ -1,10 +1,21 @@
 import { useRef, useState } from 'react'
 import { api } from '../api'
-import { ago, usePoll, useToast } from '../ui'
+import { HINTS } from '../hints'
+import { Tip, ago, usePoll, useToast } from '../ui'
 
 const EXAMPLE = `{"task": "What is 17 + 25?", "answer": "42"}
 {"question": "Fix the bug in calc.py so tests pass. Reply DONE.", "answer": "DONE",
- "files": {"calc.py": "def add(a, b):\\n    return a - b\\n"}, "setup": "pip install -q pytest"}`
+ "files": {"calc.py": "def add(a, b):\\n    return a - b\\n"}, "setup": "pip install -q pytest"}
+{"task": "Make the tests in this repo pass. Reply DONE.", "answer": "DONE",
+ "files": "C:/bench/repo1", "files_glob": "**/*.py; !**/__pycache__/**"}`
+
+/** Short description of what an item seeds into the sandbox. */
+function filesNote(meta: any): string | null {
+  const ff = meta?.files_from
+  if (ff) return `📁 ${ff.dir}${ff.glob?.length ? ' · ' + ff.glob.join('; ') : ''}`
+  const inline = meta?.files && Object.keys(meta.files)
+  return inline?.length ? `files: ${inline.join(', ')}` : null
+}
 
 export default function Datasets({ id }: { id?: string }) {
   const toast = useToast()
@@ -12,6 +23,8 @@ export default function Datasets({ id }: { id?: string }) {
   const ds = usePoll(() => (id ? api.dataset(id) : Promise.resolve(null)), [id])
   const fileRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState('')
+  const [filesDir, setFilesDir] = useState('')
+  const [filesGlob, setFilesGlob] = useState('')
   const [busy, setBusy] = useState(false)
 
   const upload = async () => {
@@ -20,11 +33,15 @@ export default function Datasets({ id }: { id?: string }) {
     const fd = new FormData()
     fd.append('file', f)
     fd.append('name', name)
+    fd.append('files_dir', filesDir)
+    fd.append('files_glob', filesGlob)
     setBusy(true)
     try {
       const d = await api.uploadDataset(fd)
       toast(`Loaded ${d.item_count} items`)
       setName('')
+      setFilesDir('')
+      setFilesGlob('')
       if (fileRef.current) fileRef.current.value = ''
       list.reload()
       window.location.hash = `#/datasets/${d.id}`
@@ -42,8 +59,15 @@ export default function Datasets({ id }: { id?: string }) {
             <input placeholder="name (optional)" value={name} onChange={(e) => setName(e.target.value)} style={{ width: 180 }} />
             <button className="primary" onClick={upload} disabled={busy}>Upload</button>
           </div>
+          <div className="row">
+            <label className="field" style={{ flex: 2 }}><span>Files folder (optional)<Tip text={HINTS.filesDir} /></span>
+              <input className="mono" placeholder="C:/bench/repo  or  tasks/{id}" value={filesDir} onChange={(e) => setFilesDir(e.target.value)} /></label>
+            <label className="field" style={{ flex: 1 }}><span>Glob (optional)<Tip text={HINTS.filesGlob} /></span>
+              <input className="mono" placeholder="**/*.py; !tests/**" value={filesGlob} onChange={(e) => setFilesGlob(e.target.value)} disabled={!filesDir.trim()} /></label>
+          </div>
           <span className="small muted">JSONL, JSON array or CSV. Task field: <code>task|question|input|prompt|problem</code>; answer: <code>answer|expected|output|target|solution</code>.
-            Optional <code>files</code> (seeded into the sandbox) and <code>setup</code> (shell command).</span>
+            Optional <code>files</code> — inline <code>{'{path: content}'}</code>, a folder path, or <code>{'{"dir": …, "glob": …}'}</code> (plus <code>files_glob</code> as a separate column);
+            folders are copied into the sandbox when each run starts. Optional <code>setup</code> — shell command.</span>
           <pre className="answer small">{EXAMPLE}</pre>
         </div>
         <div>
@@ -75,7 +99,9 @@ export default function Datasets({ id }: { id?: string }) {
                 <tr key={it.id}><td className="mono small">{it.idx}</td>
                   <td style={{ maxWidth: 560 }}><pre className="small" style={{ maxHeight: 90, overflow: 'hidden' }}>{it.task}</pre></td>
                   <td className="mono small" style={{ maxWidth: 220 }}>{it.answer}</td>
-                  <td className="small muted">{Object.keys(it.meta || {}).join(', ')}</td></tr>
+                  <td className="small muted" style={{ maxWidth: 320 }}>
+                    {filesNote(it.meta) && <div className="mono" style={{ wordBreak: 'break-all' }}>{filesNote(it.meta)}</div>}
+                    {Object.keys(it.meta || {}).filter((k) => k !== 'files' && k !== 'files_from').join(', ')}</td></tr>
               ))}
             </tbody>
           </table>

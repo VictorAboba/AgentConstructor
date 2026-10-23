@@ -121,6 +121,13 @@ class Sandbox:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content, encoding="utf-8")
 
+    def copy_in(self, files: list[tuple[str, Path]]) -> None:
+        """Copy host files (relative path, source) into the workspace."""
+        for rel, src in files:
+            target = self.resolve(rel)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, target)
+
     async def start(self) -> None: ...
     async def stop(self) -> None: ...
 
