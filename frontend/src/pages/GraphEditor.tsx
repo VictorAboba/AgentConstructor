@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Dataset, EdgeKind, GraphData, GraphRow, Meta, ModelCfg, Run, api } from '../api'
 import { EDGE_KINDS, EdgeLegend, nodeTypes, styleEdge } from '../flow'
 import { HINTS } from '../hints'
+import { tr } from '../i18n'
 import TemplateGallery from '../Templates'
 import { Mark, Modal, Pill, Tip, fmtCost, fmtMs, fmtTok, go, usePoll, useToast } from '../ui'
 import { nodeStatuses } from './RunView'
@@ -213,7 +214,8 @@ function GraphEditor({ id }: { id?: string }) {
           </ReactFlow>
           <EdgeLegend />
           {!nodes.some((n) => n.type === 'agent') && (
-            <div className="canvas-empty"><div><b>Пустой граф.</b> Добавьте Input, один или несколько Agent и Output через панель слева, затем соедините их стрелками: от правой точки узла к левой точке следующего.</div></div>
+            <div className="canvas-empty"><div>{tr('Empty graph. Add an Input, one or more Agents and an Output from the panel on the left, then connect them: drag from a node\'s right handle to the next node\'s left handle.',
+              'Пустой граф. Добавьте Input, один или несколько Agent и Output через панель слева, затем соедините их стрелками: от правой точки узла к левой точке следующего.')}</div></div>
           )}
         </div>
         {runId && run.data && <RunDrawer run={run.data} onClose={() => setRunId(null)} />}

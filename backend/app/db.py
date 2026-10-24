@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import threading
 import time
@@ -10,7 +11,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Iterable
 
-DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
+# AGENTCONSTRUCTOR_DATA moves the database and run workspaces elsewhere (tests use a temp dir).
+DATA_DIR = Path(os.environ.get("AGENTCONSTRUCTOR_DATA") or Path(__file__).resolve().parent.parent.parent / "data")
 DB_PATH = DATA_DIR / "agentconstructor.db"
 
 SCHEMA = """

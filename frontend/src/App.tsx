@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from './api'
 import Guide, { shouldAutoOpenGuide } from './Guide'
+import { LANG, setLang } from './i18n'
 import Datasets from './pages/Datasets'
 import { Compare, ExperimentList, ExperimentView } from './pages/Experiments'
 import GraphEditor from './pages/GraphEditor'
@@ -55,6 +56,12 @@ export default function App() {
         ))}
         <button className="ghost" style={{ marginTop: 'auto', justifyContent: 'flex-start' }} onClick={() => setGuide(true)}><span className="tip" style={{ marginLeft: 0 }}>?</span>Guide</button>
         <div className="side-foot" style={{ marginTop: 0 }}>no-code lab for multi-agent systems</div>
+        <div className="row small" style={{ gap: 4, padding: '0 10px 6px' }}>
+          {(['en', 'ru'] as const).map((l) => (
+            <button key={l} className={`ghost sm${LANG === l ? ' on' : ''}`} onClick={() => LANG !== l && setLang(l)}
+              title="Language of hints and the guide" style={{ fontWeight: LANG === l ? 700 : 400, opacity: LANG === l ? 1 : 0.6 }}>{l.toUpperCase()}</button>
+          ))}
+        </div>
       </nav>
       <main className="main" style={section === 'graphs' ? { overflow: 'hidden' } : undefined}>
         {section === 'graphs' && <GraphEditor key="editor" id={id} />}

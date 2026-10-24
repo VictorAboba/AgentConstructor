@@ -55,12 +55,39 @@ def _patterns(value) -> list[str]:
     return [p.strip() for p in items if isinstance(p, str) and p.strip()]
 
 
+def _glob_regex(pattern: str) -> re.Pattern:
+    """Glob → regex: "*" and "?" stay within one path segment, "**" spans directories."""
+    out, i = [], 0
+    while i < len(pattern):
+        if pattern.startswith("**/", i):
+            out.append("(?:.*/)?")
+            i += 3
+        elif pattern.startswith("**", i):
+            out.append(".*")
+            i += 2
+        elif pattern[i] == "*":
+            out.append("[^/]*")
+            i += 1
+        elif pattern[i] == "?":
+            out.append("[^/]")
+            i += 1
+        elif pattern[i] == "[" and "]" in pattern[i + 2:]:
+            end = pattern.index("]", i + 2)
+            body = pattern[i + 1:end]
+            out.append("[" + ("^" + body[1:] if body.startswith("!") else body).replace("\\", "\\\\") + "]")
+            i = end + 1
+        else:
+            out.append(re.escape(pattern[i]))
+            i += 1
+    return re.compile("".join(out) + r"\Z")
+
+
 def _matches(rel: PurePosixPath, pattern: str) -> bool:
     if pattern.startswith("re:"):
         return re.search(pattern[3:], rel.as_posix()) is not None
     if "/" not in pattern:
-        return PurePosixPath(rel.name).full_match(pattern)
-    return rel.full_match(pattern.lstrip("/"))
+        return _glob_regex(pattern).match(rel.name) is not None
+    return _glob_regex(pattern.lstrip("/")).match(rel.as_posix()) is not None
 
 
 def select_files(spec: dict) -> list[tuple[str, Path]]:

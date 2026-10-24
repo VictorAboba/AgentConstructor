@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { EdgeKind, ModelCfg, Template, api } from './api'
 import { cssVar, edgeLook } from './flow'
+import { LANG, tr } from './i18n'
 import { Modal, go, useToast } from './ui'
 
 const NODE_W = 200
@@ -74,8 +75,8 @@ export default function TemplateGallery({ models, onClose, onBlank }: { models: 
             <Preview t={t} />
             <span className="tpl-cat">{t.category}</span>
             <div className="row" style={{ gap: 6 }}><b>{t.name}</b><span className="spacer" /><span className="small faint mono">{t.agents} agent{t.agents > 1 ? 's' : ''}</span></div>
-            <span className="small">{t.summary}</span>
-            <span className="small muted"><b>Что измерять:</b> {t.measure}</span>
+            <span className="small">{LANG === 'ru' ? t.summary_ru : t.summary}</span>
+            <span className="small muted"><b>{tr('What to measure:', 'Что измерять:')}</b> {LANG === 'ru' ? t.measure_ru : t.measure}</span>
           </button>
         ))}
       </div>

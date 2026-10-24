@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { ModelCfg, Run, Span, api } from '../api'
 import { HINTS } from '../hints'
 import Replay from './Replay'
-import { Mark, Pill, Stat, Tip, fmtCost, fmtMs, fmtNum, fmtTime, fmtTok, go, usePoll } from '../ui'
+import { Mark, Pill, Stat, Tip, fmtCost, fmtMs, fmtNum, fmtTime, fmtTok, go, hashQuery, usePoll } from '../ui'
 
 export function nodeStatuses(run: Run): Record<string, 'running' | 'ok' | 'error'> {
   const out: Record<string, 'running' | 'ok' | 'error'> = {}
@@ -13,11 +13,14 @@ export function nodeStatuses(run: Run): Record<string, 'running' | 'ok' | 'error
   return out
 }
 
+const TABS = ['trace', 'replay', 'messages', 'files', 'raw']
 const KINDS = ['run', 'sandbox', 'node', 'llm', 'thought', 'tool', 'message', 'inject', 'vote', 'judge', 'limit', 'warning']
 
 export default function RunView({ id }: { id: string }) {
   const { data: run, error } = usePoll(() => api.run(id), [id], 1000, (r) => ['queued', 'running'].includes(r.status))
-  const [tab, setTab] = useState<'trace' | 'replay' | 'messages' | 'files' | 'raw'>('trace')
+  type Tab = 'trace' | 'replay' | 'messages' | 'files' | 'raw'
+  // `#/runs/<id>?tab=replay` opens a tab directly, so links to a replay can be shared.
+  const [tab, setTab] = useState<Tab>(() => (TABS.find((t) => t === hashQuery().get('tab')) as Tab | undefined) || 'trace')
   const [models, setModels] = useState<Record<string, ModelCfg>>({})
   useEffect(() => { api.models().then((ms) => setModels(Object.fromEntries(ms.map((m) => [m.id, m])))) }, [])
 

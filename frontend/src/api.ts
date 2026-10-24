@@ -36,7 +36,7 @@ export interface Experiment {
   summary: Summary; runs?: Run[]; graph_snapshot?: GraphData
 }
 export interface Template {
-  id: string; name: string; category: string; summary: string; measure: string; agents: number
+  id: string; name: string; category: string; summary: string; measure: string; summary_ru: string; measure_ru: string; agents: number
   preview: { nodes: { id: string; type: string; x: number; y: number; label: string }[]; edges: { source: string; target: string; kind: string; bidirectional: boolean }[] }
 }
 export interface Dataset { id: string; name: string; description: string; item_count: number; created_at: number; items?: any[] }

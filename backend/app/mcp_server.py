@@ -3,6 +3,7 @@ build graphs, prepare datasets, launch runs and experiments and read results."""
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -18,7 +19,7 @@ from .providers import PROVIDERS, LLMParams, ProviderError, get_provider
 from . import templates
 from .tools.builtin import BUILTIN_TOOLS
 
-UI = "http://localhost:8000"
+UI = f"http://localhost:{os.environ.get('PORT') or 8000}"  # links returned to MCP clients
 
 GUIDE = """AgentConstructor builds multi-agent systems as graphs and measures them (accuracy, latency, tokens, cost, traces).
 
